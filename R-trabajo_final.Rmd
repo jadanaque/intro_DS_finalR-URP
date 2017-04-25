@@ -1,0 +1,87 @@
+---
+title: "Regresión Logística para Clasificar Spam en E-mails"
+author: "Javier Adanaqué"
+date: "24 de Abril, 2017"
+output:
+  pdf_document:
+    df_print: kable
+    number_sections: true
+abstract: "Se elabora un modelo de Regresión Logística que nos permita clasificar emails como spam."
+fontsize: 12pt
+classoption: "a4paper"
+
+header-includes:
+- \usepackage[spanish]{babel}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+```
+
+# Introducción
+
+El objetivo del presente documento es elaborar un primer modelo de Regresión Logística Simple que nos permita clasificar los emails como spam o no-spam usando lo aprendido en clase (introductoria). Para ello se está usando una base de datos de emails con diferentes características sobre las mismas.
+
+Primero se realizará una exploración rápida de algunas variables y luego se contruirá el modelo, mostrando la mayoría de las veces el código usado para llegar a ellos.
+
+Al ser un modelo de Regresión Logística **Simple** nos concentraremos en conocer si una sola variable nos ayuda a predecir si un mail es spam o no. Para ello se usará, en este primero modelo, nuestra intuición y conocimiento sobre emails para determinar qué variable nos podría predecir mejor si es spam o no.
+
+# Data
+
+Para el análisis se está usando la data `SPAM.txt`, ubicada entre los datasets
+distribuidos para la clase. Esta es una base de 4601 e-mails (correos electrónicos) y sus características:
+
+```{r data, warning=FALSE}
+spam_dat <- read.table("data/SPAM.txt", header = TRUE,
+                       stringsAsFactors = FALSE)
+spam_dat[1:6, c(1:6, 53:58)]
+```
+
+Como se puede observar en las primeras seis observaciones (y algunas columnas), nos muestra diferentes características sobre los e-mails, incluido el tipo de email: "spam" o "nonspam".
+
+Descripción de variables:
+
+- Primeras 48 variables: Frecuencia (relativa) del nombre de la variable en el correo electrónico. Si el nombre de la variable empieza con 'num (e.g., `num857`), entonces indica la frecuencia del número correspondiente (e.g., 857).
+- Las variables 49-54 indican la frecuencia de los caracteres ‘;’, ‘(’, ‘[’, ‘!’, ‘\$’, and ‘\#’.
+- Las variables 55-57 contienen características relacionadas a las letras mayúsculas en el mail.
+- `tipo`: Indica si el e-mail es "spam" o "nonspam".
+
+# Análisis exploratorio
+
+A continuación exploraremos algunas variables que parecen relevantes para determinar si un e-mail es spam o no. Empezaremos explorando nuestra variable que queremos explicar, `tipo`:
+
+```{r}
+ggplot(spam_dat, aes(tipo)) + geom_bar(colour = "black", fill = "lightblue")
+```
+
+Vemos que hay un buen número de de e-mails clasificados como "spam" y "nonspam", lo cual ayuda para la elaboración del modelo (más difícil sería si tuviéramos sólo un pequeño número de spam).
+
+Ahora las variables que nos pueden ayudar a predecir si un e-mail es spam. Nuestra intuición nos dice que una gran mayoría de spams buscan ofrecerte algo tentador, de manera que lo leas y abras el link que se encuentre adentro (de haber alguno). Entonces, nos concentraremos en alguna variable que nos indique la frecuencia de algunos términos/caracteres como estos: "dinero", "gratis", "$", "negocio" y similares;
+
+```{r}
+names(spam_dat)
+```
+
+Exploremos las variables `free`, `business`, `money` y `charDollar` (caracter: $):
+
+```{r hist_medv, fig.cap="Histograma del Valor Medio de las Viviendas en Boston", echo=FALSE, warning=FALSE, message=FALSE, fig.height=3.2, fig.width=5}
+boxplot(charDollar+0.01 ~ tipo, data = spam_dat, log = "y")
+```
+
+```{r}
+spam_dat %>%
+    ggplot(aes(tipo, charDollar+0.01)) + geom_boxplot() +
+      scale_y_continuous(trans = "log") + geom_hline(yintercept = 6, colour = "red")
+```
+
+```{r}
+spam_dat %>%
+    ggplot(aes(tipo, charDollar+0.01)) + geom_violin(trim = FALSE) +
+    scale_y_continuous(trans = "log") +
+    geom_hline(yintercept = 6, colour = "red")
+```
+
+
