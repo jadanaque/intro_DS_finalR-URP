@@ -57,19 +57,44 @@ A continuación exploraremos algunas variables que parecen relevantes para deter
 ggplot(spam_dat, aes(tipo)) + geom_bar(colour = "black", fill = "lightblue")
 ```
 
-Vemos que hay un buen número de de e-mails clasificados como "spam" y "nonspam", lo cual ayuda para la elaboración del modelo (más difícil sería si tuviéramos sólo un pequeño número de spam).
+Vemos que hay un buen número de de e-mails clasificados como "spam" y "nonspam", lo cual ayuda para la elaboración del modelo (más difícil sería si tuviéramos mucho de uno y muy poco del otro).
 
-Ahora las variables que nos pueden ayudar a predecir si un e-mail es spam. Nuestra intuición nos dice que una gran mayoría de spams buscan ofrecerte algo tentador, de manera que lo leas y abras el link que se encuentre adentro (de haber alguno). Entonces, nos concentraremos en alguna variable que nos indique la frecuencia de algunos términos/caracteres como estos: "dinero", "gratis", "$", "negocio" y similares;
+Ahora exploramos las variables que nos pueden ayudar a predecir si un e-mail es spam. Nuestra intuición nos dice que una gran mayoría de spams buscan ofrecerte algo tentador, de manera que lo leas y abras el link que se encuentre adentro (de haber alguno). Entonces, nos concentraremos en alguna variable que nos indique la frecuencia de términos/caracteres como estos: "dinero", "gratis", "$", "negocio" y similares;
 
 ```{r}
 names(spam_dat)
 ```
 
-Exploremos las variables `free`, `business`, `money` y `charDollar` (caracter: $):
+Exploremos las variables `free`, `business`, `money` y `charDollar` (caracter: $), que parecen relevantes:
 
-```{r hist_medv, fig.cap="Histograma del Valor Medio de las Viviendas en Boston", echo=FALSE, warning=FALSE, message=FALSE, fig.height=3.2, fig.width=5}
-boxplot(charDollar+0.01 ~ tipo, data = spam_dat, log = "y")
+```{r}
+par(mfrow = c(2, 2),
+    mar = c(3.9, 0, 1, 1.2),
+    oma = c(1, 3.9, 0, 0))
+for (i in c("free", "business", "money", "charDollar")) {
+    hist(spam_dat[, i], breaks = 80, col = "lightgray",
+         xlab = i, main = NULL)
+}
+title(ylab = "Frecuencia", outer = TRUE, line = 3)
+par(mfrow = c(1, 1),
+    mar = c(5.1, 4.1, 4.1, 2.1),
+    oma = rep(0, 4))
 ```
+
+Observamos que las 4 variables se encuentran altamente sesgadas. Esto es entendible, dado que en un correo no se suele repetir una palabra/caracter demasiadas veces; por eso es que, en las 4 variables seleccionadas, la mayoría de observaciones se encuentran entre 0 y 2 (por ciento), salvo unos cuantos outliers.
+
+```{r}
+summary(spam_dat[, c("free", "business", "money", "charDollar")])
+```
+
+De ahora en adelante, continuaremos el análisis usando `charDollar` como variable explicativa. Esto, porque es una variable que definitivamente se repite bastante en los correos spam (ver siguiente gráfico) y porque es una variable cuyo rango no muy extenso (entre 0 y 6, como se puede observar en la tabla anterior).
+
+```{r boxplot_dollar, fig.cap="Diagrama de Cajas de 'charDollar' según 'tipo' de e-mail. Se limitó el eje vertical (zoom) para mayor claridad; de lo contrario, los outliers llegarían hasta 6.003.", echo=FALSE, warning=FALSE, message=FALSE}
+boxplot(charDollar ~ tipo, data = spam_dat, ylim = c(0, .8),
+        ylab = "Frecuencia del caracter $ en e-mail (%)", col="lightgray")
+```
+
+# Modelamiento
 
 ```{r}
 spam_dat %>%
