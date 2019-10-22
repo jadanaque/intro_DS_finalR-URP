@@ -1,5 +1,5 @@
 ---
-title: "Regresión Logística para Clasificar Spam en E-mails"
+title: "Regresión Logística para Clasificar Spam"
 author: "Javier Adanaqué"
 date: "24 de Abril, 2017"
 output:
@@ -34,10 +34,19 @@ Al ser un modelo de Regresión Logística **Simple** nos concentraremos en conoc
 Para el análisis se está usando la data `SPAM.txt`, ubicada entre los datasets
 distribuidos para la clase. Esta es una base de 4601 e-mails (correos electrónicos) y sus características:
 
-```{r data, warning=FALSE}
+```{python, eval=FALSE}
+# Se lee la data con Python. El resto del análisis se trabaja con R.
+import pandas as pd
+
+spam_dat = pd.read_table("data/SPAM.txt")
+print(spam_dat.iloc[:6, [0, 1, 2, 52, 55, 56, 57]])
+```
+
+
+```{r data, warning=FALSE, echo=FALSE}
 spam_dat <- read.table("data/SPAM.txt", header = TRUE,
                        stringsAsFactors = FALSE)
-spam_dat[1:6, c(1:6, 53:58)]
+spam_dat[1:6, c(1:3, 53, 56:58)]
 ```
 
 Como se puede observar en las primeras seis observaciones (y algunas columnas), nos muestra diferentes características sobre los e-mails, incluido el tipo de email: "spam" o "nonspam".
@@ -53,7 +62,7 @@ Descripción de variables:
 
 A continuación exploraremos algunas variables que parecen relevantes para determinar si un e-mail es spam o no. Empezaremos explorando nuestra variable que queremos explicar, `tipo`:
 
-```{r}
+```{r, echo = FALSE}
 ggplot(spam_dat, aes(tipo)) + geom_bar(colour = "black", fill = "lightblue")
 ```
 
@@ -89,24 +98,59 @@ summary(spam_dat[, c("free", "business", "money", "charDollar")])
 
 De ahora en adelante, continuaremos el análisis usando `charDollar` como variable explicativa. Esto, porque es una variable que definitivamente se repite bastante en los correos spam (ver siguiente gráfico) y porque es una variable cuyo rango no muy extenso (entre 0 y 6, como se puede observar en la tabla anterior).
 
-```{r boxplot_dollar, fig.cap="Diagrama de Cajas de 'charDollar' según 'tipo' de e-mail. Se limitó el eje vertical (zoom) para mayor claridad; de lo contrario, los outliers llegarían hasta 6.003.", echo=FALSE, warning=FALSE, message=FALSE}
+```{r boxplot_dollar, fig.cap="Diagrama de Cajas de 'charDollar' según 'tipo' de e-mail. Se limitó el eje vertical (zoom) para mayor claridad; de lo contrario, los outliers llegarían hasta 6.003.", warning=FALSE, message=FALSE}
 boxplot(charDollar ~ tipo, data = spam_dat, ylim = c(0, .8),
         ylab = "Frecuencia del caracter $ en e-mail (%)", col="lightgray")
 ```
 
 # Modelamiento
 
-```{r}
-spam_dat %>%
-    ggplot(aes(tipo, charDollar+0.01)) + geom_boxplot() +
-      scale_y_continuous(trans = "log") + geom_hline(yintercept = 6, colour = "red")
+Como se indica al inicio, para el modelo de clasificación se usará Regresión Logística Simple, el cual vamos a especificar de la siguiente manera:
+
+$$\ln{(\frac{p}{1-p})} = \alpha + \beta*charDollar$$
+Ahora se estiman los parámetros y determina la significancia de los mismos:
+
+```{r modelo_logist, warning=FALSE}
+spam_dat$tipo_num <- ifelse(spam_dat$tipo == "spam", 1, 0)
+modelo_spam <- glm(tipo_num ~ charDollar, family = binomial(), data = spam_dat)
+summary(modelo_spam)
 ```
 
+Por el p-value, y el tamaño del coeficiente, se puede observar que `charDollar` es altamente significativo. El intercepto también es significativo con un p-value de $<2e^-16$. Esto nos da claridad sobre la significancia del modelo, pero de todas maneras, en este primer modelo, se hace una prueba más para saber qué tan efectivo es el modelo clasificando, con un cutoff de 0.5 (50% de probabilidad).
+
 ```{r}
-spam_dat %>%
-    ggplot(aes(tipo, charDollar+0.01)) + geom_violin(trim = FALSE) +
-    scale_y_continuous(trans = "log") +
-    geom_hline(yintercept = 6, colour = "red")
+tab_clasif <- table(spam_dat$tipo,
+                    ifelse(predict(modelo_spam, type = "response")>0.5, "spam", "nonspam"))
+tab_clasif <- as.data.frame.matrix(tab_clasif)
+tab_clasif[, "%correctos"] <- c(tab_clasif[1, 1]/sum(tab_clasif[1, ]),
+                                tab_clasif[2, 2]/sum(tab_clasif[2, ]))
+tab_clasif[, "%correctos"] <- paste(format(tab_clasif[, "%correctos"]*100, digits = 2, nsmall = 2), "%")
+tab_clasif
 ```
 
+- Porcentaje de correctos (Accuracy): `r format(((2680+921)/(2680+921+108+892))*100, digits = 2, nsmall = 2)`%
+- Sensibilidad: 50.8%
+- Especificidad: 96.13%
 
+Como vemos, en general nuestro modelo es bueno; sin embargo, para nuestro objetivo, clasificar spam, no es tan bueno dado que sólo clasifica correctamente alrededor de un 50% de los spams.
+
+Finalmente, veamos algunas observaciones y sus estimados:
+
+```{r}
+estimados <- data.frame(tipo_observado = spam_dat$tipo,
+        prob_estimada = predict(modelo_spam, type = "response"),
+        tipo_estimado = ifelse(predict(modelo_spam, type = "response")>0.5, "spam", "nonspam"))
+estimados[c(1, 5, 50, 100, 1000, 2000, 3000, 4000), ]
+```
+
+<!-- Gráfico de valores estimados: -->
+
+<!-- ```{r} -->
+<!-- plot(spam_dat$charDollar, fitted(modelo_spam)) -->
+<!-- ``` -->
+
+# Conclusiones
+
+El modelo, a nivel general, clasifica correctamente un 78% de las observaciones. Sin embargo, no es bueno clasificando los spams, con sólo un 50% de efectividad en este caso; resultado esperado, dado que la variable `charDollar` se encuentra demasiado sesgada positivamente, con una gran porción de datos alrededor de 0. Además, para clasificar e-mails no es suficiente una sola variable.
+
+Queda pendiente probar con más variables, hacer más tests y dividir la data en "train" y "test" para mejor validación del modelo.
